@@ -1,1 +1,123 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>XIAOQUAN SAIMA</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#07111f;color:#fff;font-family:Arial,"Microsoft YaHei",sans-serif}.wrap{max-width:1100px;margin:auto;padding:15px}
+.card{background:#101d30;border:1px solid #29405d;border-radius:18px;padding:18px;margin-bottom:14px;box-shadow:0 12px 35px #0005}
+h1,h2{margin:0 0 12px}.row{display:flex;gap:10px;flex-wrap:wrap}.muted{color:#9eb0c7;font-size:13px}
+.btn{border:0;border-radius:10px;padding:10px 15px;background:#1677ff;color:#fff;font-weight:700;cursor:pointer}.gold{background:#b88400}.red{background:#a83232}
+input{background:#07111f;border:1px solid #36506e;color:#fff;border-radius:9px;padding:10px;width:150px}.login{max-width:430px;margin:8vh auto}
+.balance{font-size:25px;font-weight:800;color:#ffd45a}.notice{padding:10px;border-radius:10px;background:#1b293d;color:#bcd0e8;margin:10px 0;font-size:13px}
+.horses{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}.horse{border:1px solid #304965;border-radius:13px;padding:12px;background:#0b1727}.horse.selected{border-color:#ffd45a;box-shadow:0 0 0 2px #ffd45a44}
+.htop{display:flex;justify-content:space-between}.odds{color:#ffd45a;font-weight:800}.track{border:1px solid #304965;border-radius:14px;overflow:hidden;background:#081321;margin-top:15px}.lane{height:55px;border-bottom:1px dashed #304965;position:relative;display:flex;align-items:center}.lane:last-child{border:0}.label{width:76px;padding-left:8px;font-size:12px}.finish{position:absolute;right:25px;height:100%;width:7px;background:repeating-linear-gradient(45deg,#fff 0 7px,#111 7px 14px)}.runner{position:absolute;left:8%;font-size:29px}.history{max-height:230px;overflow:auto}.item{padding:9px;border-bottom:1px solid #26384e;font-size:13px}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.stat{background:#0b1727;padding:12px;border-radius:12px}.stat b{display:block;margin-top:4px;font-size:18px}
+table{width:100%;border-collapse:collapse}th,td{padding:9px;border-bottom:1px solid #2a4059;text-align:left;font-size:13px}
+@media(max-width:700px){.horses{grid-template-columns:1fr}.stats{grid-template-columns:repeat(2,1fr)}}
+</style></head>
+<body><div id="app"></div>
+<style>
+#musicBox{position:fixed;right:12px;top:12px;z-index:9999;display:none}
+#musicBtn{padding:9px 12px}
+#musicPanel{display:none;position:absolute;right:0;top:46px;width:230px;background:#101d30;border:1px solid #36506e;border-radius:14px;padding:12px;box-shadow:0 12px 35px #0008}
+#musicPanel button{border:0;border-radius:9px;padding:8px 10px;margin-right:5px;cursor:pointer}
+#musicPanel input{width:100%;margin-top:7px}
+</style>
+<div id="musicBox">
+  <button class="btn gold" id="musicBtn" type="button">🎵 音乐</button>
+  <div id="musicPanel">
+    <div style="font-weight:800;margin-bottom:9px">🎵 游戏内音乐</div>
+    <button id="musicPlay" type="button">▶ 播放</button>
+    <button id="musicMute" type="button">🔊</button>
+    <div class="muted" style="margin-top:9px">音量</div>
+    <input id="musicVol" type="range" min="0" max="1" step="0.05" value="0.35">
+  </div>
+</div>
+<audio id="bgMusic" src="/background-music.mp3" loop preload="auto"></audio>
+<script>
+let musicOn=false;
+function musicUI(){
+  const box=document.getElementById('musicBox'),btn=document.getElementById('musicBtn'),panel=document.getElementById('musicPanel');
+  const audio=document.getElementById('bgMusic'),play=document.getElementById('musicPlay'),mute=document.getElementById('musicMute'),vol=document.getElementById('musicVol');
+  if(!box||!audio)return;
+  box.style.display='block'; audio.volume=Number(vol.value);
+  btn.onclick=(e)=>{e.stopPropagation();panel.style.display=panel.style.display==='block'?'none':'block'};
+  play.onclick=async(e)=>{e.stopPropagation();try{if(audio.paused){await audio.play();musicOn=true;play.textContent='⏸ 暂停';btn.textContent='🎵 播放中'}else{audio.pause();musicOn=false;play.textContent='▶ 播放';btn.textContent='🎵 音乐'}}catch(err){alert('手机浏览器拦截了声音，请再点击一次“播放”。')}};
+  mute.onclick=(e)=>{e.stopPropagation();audio.muted=!audio.muted;mute.textContent=audio.muted?'🔇':'🔊'};
+  vol.oninput=(e)=>{audio.volume=Number(e.target.value);audio.muted=false;mute.textContent='🔊'};
+  audio.onplay=()=>{musicOn=true;play.textContent='⏸ 暂停';btn.textContent='🎵 播放中'};
+  audio.onpause=()=>{musicOn=false;play.textContent='▶ 播放';btn.textContent='🎵 音乐'};
+}
+function hideMusic(){const box=document.getElementById('musicBox');if(box)box.style.display='none';}
+const odds=[1.5,2,2.5,3.5,5,7,10,15], names=["赤焰","闪电","猎鹰","黑骑","黄金","风暴","幽灵","王者"];
+let user=null,racing=false, token=localStorage.getItem("xq_session")||"";
 
+async function api(path, options={}){
+  const headers={"Content-Type":"application/json",...(options.headers||{})};
+  if(token) headers.Authorization="Bearer "+token;
+  const r=await fetch(path,{...options,headers});
+  const data=await r.json().catch(()=>({}));
+  if(!r.ok) throw new Error(data.error||"请求失败");
+  return data;
+}
+function loginPage(){hideMusic();
+document.getElementById("app").innerHTML=`<div class="card login"><h1>🐎 XIAOQUAN SAIMA</h1><p class="muted">虚拟赛马系统 · 云端同步版</p>
+<input id="uid" placeholder="账号" style="width:100%;margin:5px 0"><input id="pw" type="password" placeholder="密码" style="width:100%;margin:5px 0">
+<button class="btn" id="loginBtn" style="width:100%;margin-top:7px">登录</button>
+<button class="btn gold" id="adminBtn" style="width:100%;margin-top:8px">🔐 管理员后台</button>
+<p id="err" class="muted"></p>
+<div class="notice">账号：XIAOQUANSAIMA1–999<br>余额保存在云端；管理员调整后，其他手机刷新即可同步。</div></div>`;
+document.getElementById("loginBtn").onclick=async()=>{try{
+ const d=await api("/api/login",{method:"POST",body:JSON.stringify({username:document.getElementById("uid").value.trim().toUpperCase(),password:document.getElementById("pw").value})});
+ token=d.token;localStorage.setItem("xq_session",token);user=d.username;home();musicUI();
+}catch(e){document.getElementById("err").textContent=e.message}};
+document.getElementById("adminBtn").onclick=adminLoginPage;
+document.getElementById("pw").onkeydown=e=>{if(e.key==="Enter")document.getElementById("loginBtn").click()};
+}
+function adminLoginPage(){hideMusic();
+document.getElementById("app").innerHTML=`<div class="card login"><h1>🔐 管理员后台</h1><p class="muted">云端余额管理</p>
+<input id="aid" placeholder="管理员账号" style="width:100%;margin:5px 0"><input id="apw" type="password" placeholder="管理员密码" style="width:100%;margin:5px 0">
+<button class="btn gold" id="adminLoginBtn" style="width:100%;margin-top:7px">进入后台</button><button class="btn" id="backLoginBtn" style="width:100%;margin-top:8px">← 返回顾客登录</button>
+<p id="aerr" class="muted"></p><div class="notice">管理员密码不会显示在网页上。</div></div>`;
+document.getElementById("adminLoginBtn").onclick=async()=>{try{
+ const d=await api("/api/admin/login",{method:"POST",body:JSON.stringify({username:document.getElementById("aid").value.trim(),password:document.getElementById("apw").value})});
+ token=d.token;localStorage.setItem("xq_session",token);adminPage();
+}catch(e){document.getElementById("aerr").textContent=e.message}};
+document.getElementById("backLoginBtn").onclick=loginPage;
+}
+async function getMe(){return await api("/api/me")}
+async function home(){let s=await getMe();document.getElementById("app").innerHTML=`<div class="wrap">
+<div class="card"><div class="row" style="justify-content:space-between"><div><h1>🏇 XIAOQUAN SAIMA</h1><div class="muted">${user}</div></div><div class="balance">RM ${s.balance.toFixed(2)}</div></div>
+<div class="notice">云端虚拟余额：下注即时扣除，命中后按赔率返还。顾客端无法自行充值。</div>
+<div class="row"><button class="btn" id="profile">👤 个人中心</button><button class="btn" id="pwd">🔐 修改密码</button><button class="btn red" id="logout">退出</button></div></div>
+<div class="card"><h2>🎯 选择马匹并下注</h2><div class="horses" id="horses"></div><div class="row" style="margin-top:14px"><button class="btn" id="start">🏁 开始比赛</button><button class="btn" id="clear">↻ 清除下注</button></div><div id="status" class="notice">可同时选择多匹马。</div><div class="track" id="track"></div></div>
+<div class="card"><h2>📜 比赛记录</h2><div class="history" id="hist"></div></div></div>`;
+drawHorses();drawTrack();await drawHist();
+document.getElementById("start").onclick=race;document.getElementById("clear").onclick=()=>{if(!racing)drawHorses()};
+document.getElementById("logout").onclick=()=>{token="";user=null;localStorage.removeItem("xq_session");const a=document.getElementById("bgMusic");if(a)a.pause();hideMusic();loginPage()};
+document.getElementById("profile").onclick=profile;document.getElementById("pwd").onclick=changePass}
+function drawHorses(){const box=document.getElementById("horses");box.innerHTML="";odds.forEach((o,i)=>{let d=document.createElement("div");d.className="horse";d.innerHTML=`<div class="htop"><b>🐎 ${i+1}号 · ${names[i]}</b><span class="odds">${o.toFixed(2)}x</span></div><div class="muted">赔率越高，获胜难度越高</div><input class="bet" data-i="${i}" type="number" min="0" step=".01" placeholder="模拟金额 RM" style="margin-top:8px">`;box.appendChild(d);d.querySelector(".bet").oninput=e=>d.classList.toggle("selected",Number(e.target.value)>0)})}
+function drawTrack(){let t=document.getElementById("track");t.innerHTML="";for(let i=0;i<8;i++)t.innerHTML+=`<div class="lane"><span class="label">${i+1}号 ${names[i]}</span><span class="runner" id="runner${i}">🏇</span><span class="finish"></span></div>`}
+async function drawHist(){let s=await getMe();document.getElementById("hist").innerHTML=s.history.length?s.history.slice().reverse().map(x=>`<div class="item">${x.time}　冠军 ${x.winner}号　下注 RM${x.total.toFixed(2)}　${x.result}　余额 RM${x.balance.toFixed(2)}</div>`).join(""):"<span class='muted'>暂无记录</span>"}
+function beep(f,d=.12){try{let c=new AudioContext,o=c.createOscillator(),g=c.createGain();o.frequency.value=f;o.connect(g);g.connect(c.destination);g.gain.value=.04;o.start();o.stop(c.currentTime+d)}catch(e){}}
+function pickWinner(){let w=odds.map(o=>1/(o*o)),sum=w.reduce((a,b)=>a+b,0),r=Math.random()*sum;for(let i=0;i<8;i++){if((r-=w[i])<=0)return i}return 0}
+async function race(){if(racing)return;let bets=[...document.querySelectorAll(".bet")].map(x=>Number(x.value)||0),total=bets.reduce((a,b)=>a+b,0);if(total<=0)return status.textContent="请至少输入模拟下注金额。";let me=await getMe();if(total>me.balance)return status.textContent="虚拟余额不足，请联系后台管理员调整余额。";racing=true;start.disabled=true;document.querySelectorAll(".bet").forEach(x=>x.disabled=true);try{await api("/api/bet",{method:"POST",body:JSON.stringify({amount:total})})}catch(e){racing=false;start.disabled=false;return status.textContent=e.message}
+status.textContent="🎺 比赛开始！";beep(500);let w=pickWinner(),t0=performance.now(),dur=6200;
+function f(t){let p=Math.min(1,(t-t0)/dur);for(let i=0;i<8;i++)document.getElementById("runner"+i).style.left=Math.min(92,(p*(.82+Math.random()*.18)+(i===w?p*.1:0))*88)+"%";if(p<1)requestAnimationFrame(f);else finish(w,bets,total)}requestAnimationFrame(f)}
+async function finish(w,bets,total){let stake=bets[w]||0,ret=stake*odds[w],won=stake>0;try{let d=await api("/api/race-finish",{method:"POST",body:JSON.stringify({winner:w+1,stake,odds:odds[w],total,returnAmount:won?ret:0,result:won?`🎉 ${w+1}号获胜，虚拟返还 RM${ret.toFixed(2)}`:`❌ ${w+1}号获胜，你没有押中`})});racing=false;beep(won?900:180,.3);home()}catch(e){racing=false;status.textContent=e.message;home()}}
+async function profile(){let s=await getMe();document.getElementById("app").innerHTML=`<div class="wrap"><div class="card"><h1>👤 个人中心</h1><p class="muted">账号：${user}</p><div class="balance">RM ${s.balance.toFixed(2)}</div><div class="stats"><div class="stat">总下注<b>RM${s.totalBet.toFixed(2)}</b></div><div class="stat">总返还<b>RM${s.totalReturn.toFixed(2)}</b></div><div class="stat">总损失<b>RM${s.totalLoss.toFixed(2)}</b></div><div class="stat">场次<b>${s.history.length}</b></div></div><div class="notice">余额由云端管理员调整。</div><button class="btn" id="back">← 返回</button></div></div>`;document.getElementById("back").onclick=home}
+async function changePass(){let o=prompt("旧密码"),n=prompt("新密码（至少6位）");if(!o||!n||n.length<6)return alert("密码至少6位");try{await api("/api/password",{method:"POST",body:JSON.stringify({oldPassword:o,newPassword:n})});alert("修改成功")}catch(e){alert(e.message)}}
+async function adminPage(){
+document.getElementById("app").innerHTML=`<div class="wrap"><div class="card"><div class="row" style="justify-content:space-between"><h1>🔐 云端后台管理中心</h1><button class="btn red" id="aout">退出后台</button></div>
+<div class="notice">管理员专用：这里只能调整虚拟余额。所有顾客使用同一份云端数据。</div>
+<h2>💰 顾客充值 / 余额管理</h2><div class="notice"><b>充值入口：</b>输入顾客账号和金额后，点击「💳 给顾客充值」。朋友手机刷新后即可看到更新。</div>
+<div class="row"><input id="customer" placeholder="顾客账号 XIAOQUANSAIMA1"><input id="amount" type="number" step=".01" placeholder="金额 RM"><input id="reason" placeholder="备注（可选）"><button class="btn gold" id="add">💳 给顾客充值</button><button class="btn red" id="minus">－ 扣除余额</button><button class="btn" id="refresh">🔄 刷新余额</button></div><p id="adminMsg" class="muted"></p><div id="customerInfo" class="notice">输入账号后查询云端余额。</div></div>
+<div class="card"><h2>📋 最近后台调整记录</h2><div id="logs"></div></div></div>`;
+document.getElementById("aout").onclick=()=>{token="";localStorage.removeItem("xq_session");loginPage()};
+document.getElementById("refresh").onclick=showCustomer;document.getElementById("customer").oninput=showCustomer;
+document.getElementById("add").onclick=()=>adjust(1);document.getElementById("minus").onclick=()=>adjust(-1);await showCustomer();await showLogs()}
+async function showCustomer(){let id=document.getElementById("customer").value.trim().toUpperCase();let el=document.getElementById("customerInfo");if(!id)return el.textContent="输入账号后查询云端余额。";try{let d=await api("/api/admin/customer?username="+encodeURIComponent(id));el.textContent=id+" 当前云端虚拟余额：RM "+d.balance.toFixed(2)}catch(e){el.textContent=e.message}}
+async function adjust(sign){let id=document.getElementById("customer").value.trim().toUpperCase(),n=Number(document.getElementById("amount").value),reason=document.getElementById("reason").value.trim()||"后台余额调整";try{let d=await api("/api/admin/adjust",{method:"POST",body:JSON.stringify({username:id,amount:sign*n,reason})});document.getElementById("adminMsg").textContent=(sign>0?"✅ 充值成功：":"✅ 扣除成功：")+id+"，新余额 RM "+d.balance.toFixed(2);document.getElementById("amount").value="";await showCustomer();await showLogs()}catch(e){document.getElementById("adminMsg").textContent=e.message}}
+async function showLogs(){try{let d=await api("/api/admin/logs");document.getElementById("logs").innerHTML=d.logs.length?d.logs.slice().reverse().map(x=>`<div class="item">${x.time}　${x.user}　${x.change}　${x.reason}　余额 RM${x.balance.toFixed(2)}</div>`).join(""):"<span class='muted'>暂无记录</span>"}catch(e){document.getElementById("logs").innerHTML="<span class='muted'>"+e.message+"</span>"}}
+loginPage();
+</script></body></html>
